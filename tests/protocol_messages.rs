@@ -210,6 +210,9 @@ fn metadata_controller_repeat_and_playback_values() {
         artwork_url: None,
         year: Some(2024),
         track: Some(2),
+        album_track: None,
+        queue_track: None,
+        total_tracks: None,
         progress: Some(TrackProgress {
             track_progress: 1000,
             track_duration: 2000,
@@ -516,4 +519,18 @@ fn goodbye_unpair_and_group_reason_values() {
         serde_json::to_value(Message::ServerUnpair(ServerUnpair {})).unwrap(),
         serde_json::json!({"type":"server/unpair", "payload":{}})
     );
+}
+
+#[test]
+fn metadata_state_parses_trackfields_split() {
+    let json = r#"{"type":"server/state","payload":{"metadata":{"timestamp":1,"title":"T","album_track":3,"queue_track":7,"total_tracks":12}}}"#;
+    let msg: Message = serde_json::from_str(json).unwrap();
+    let Message::ServerState(state) = msg else {
+        panic!("expected server/state");
+    };
+    let md = state.metadata.flatten().expect("metadata");
+    assert_eq!(md.track, None);
+    assert_eq!(md.album_track, Some(3));
+    assert_eq!(md.queue_track, Some(7));
+    assert_eq!(md.total_tracks, Some(12));
 }

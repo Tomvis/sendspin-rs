@@ -851,6 +851,17 @@ pub struct MetadataState {
     /// Track number (1-indexed)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub track: Option<u32>,
+    /// Track number on the current media's album (Tomvis/aiosendspin
+    /// trackfields fork; replaces `track` on that server)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub album_track: Option<u32>,
+    /// 1-based position of the current media within the active queue
+    /// (trackfields fork)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue_track: Option<u32>,
+    /// Total number of tracks in the active queue (trackfields fork)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_tracks: Option<u32>,
     /// Current track progress
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress: Option<TrackProgress>,
