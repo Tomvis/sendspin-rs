@@ -727,6 +727,7 @@ impl ProtocolClient {
             persisted_roles: session.initial_active_roles.clone(),
             state_sent: false,
             rehandshake_in_progress: false,
+            pairing_index: u32::from(session.initial_activities.contains(&Activity::Pairing)),
             shared: Arc::clone(&shared),
         };
 

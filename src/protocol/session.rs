@@ -17,9 +17,9 @@ use crate::protocol::crypto::{
     b64url_decode, b64url_encode, select_psk, CipherSuite, Identity, Psk, PskCandidate, PskCategory,
 };
 use crate::protocol::messages::{
-    Activity, ClientGoodbye, ClientHello, ClientPairFinalize, DeviceInfo, GoodbyeReason, Message,
-    NoiseHandshake, NoiseMessage1Payload, PairAbort, PairAbortReason, PairingMethod,
-    ServerActivate, SupportedPairMethods, UnpairedAccess,
+    Activity, ClientGoodbye, ClientHello, ClientPairFinalize, ClientPairInit, DeviceInfo,
+    GoodbyeReason, Message, NoiseHandshake, NoiseMessage1Payload, PairAbort, PairAbortReason,
+    PairingMethod, ServerActivate, SupportedPairMethods, UnpairedAccess,
 };
 use crate::protocol::pairing::{PairingRecord, PairingStore};
 use crate::protocol::roles::SharedSessionState;
@@ -298,6 +298,9 @@ pub(crate) struct SessionState {
     /// Reject a second re-handshake until the writer has applied the first key
     /// swap and the server has completed its activate sequence.
     pub rehandshake_in_progress: bool,
+    /// Pairing `server/activate` messages received since the last Noise
+    /// handshake (spec `pairing_index`).
+    pub pairing_index: u32,
     /// Live state shared with the message router and application handles.
     pub shared: Arc<SharedSessionState>,
 }
@@ -376,6 +379,7 @@ impl SessionState {
                     self.state_sent = true;
                 }
                 if pairing_now {
+                    self.pairing_index += 1;
                     // Pairing PSK flow: start (or supersede) the attempt.
                     if self.current.category == PskCategory::Pairing {
                         self.start_pairing_attempt(io);
@@ -552,6 +556,7 @@ impl SessionState {
                     self.store.mark_used(&new_current.psk.psk_id());
                 }
                 self.current = new_current;
+                self.pairing_index = 0;
                 self.clear_pairing_attempt();
                 self.persisted_roles = Vec::new();
                 self.shared
@@ -566,12 +571,23 @@ impl SessionState {
         }
     }
 
-    /// Begin (or supersede) a Pairing PSK attempt: deliver a freshly
-    /// generated long-term PSK and start the attempt timeout.
+    /// Begin (or supersede) a Pairing PSK attempt: open it with
+    /// `client/pair-init`, deliver a freshly generated long-term PSK and start
+    /// the attempt timeout.
     pub(crate) fn start_pairing_attempt(&mut self, io: &SessionIo) {
         match Psk::generate() {
             Ok(new_psk) => {
-                log::info!("Starting Pairing PSK flow: sending client/pair-finalize");
+                log::info!(
+                    "Starting Pairing PSK flow: sending client/pair-init (index {}) + client/pair-finalize",
+                    self.pairing_index
+                );
+                enqueue_json(
+                    &io.out_tx,
+                    Message::ClientPairInit(ClientPairInit {
+                        pairing_index: self.pairing_index,
+                        commit_b: None,
+                    }),
+                );
                 enqueue_json(
                     &io.out_tx,
                     Message::ClientPairFinalize(ClientPairFinalize {
